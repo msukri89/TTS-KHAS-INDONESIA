@@ -11,6 +11,7 @@ export default async function handler(req,res){
       text:input,
       voice:String(voice||"id_ID-news_tts-medium"),
       format:"mp3",
+      language:"id",
       speed:Math.min(2,Math.max(.5,Number(rate)||1))
     };
 
@@ -48,7 +49,7 @@ export default async function handler(req,res){
         return res.status(200).json({audioContent:bytes.toString("base64"),voice:payload.voice,provider:"TTS.ai Piper"});
       }
       if(result.status==="failed"){
-        return res.status(502).json({error:"TTS.ai gagal melakukan sintesis: "+String(result.error||result.message||"synthesis-failed")});
+        return res.status(502).json({error:"TTS.ai gagal melakukan sintesis: "+String(result.error||result.message||result.status||"synthesis-failed"),status:result.status||null});
       }
     }
     return res.status(504).json({error:"TTS.ai belum selesai setelah 25 detik. Silakan coba lagi."});
