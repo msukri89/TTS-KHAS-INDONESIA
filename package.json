@@ -1,0 +1,12 @@
+{
+  "name": "tts-khas-indonesia",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=18.17.0"
+  },
+  "dependencies": {
+    "edge-tts-universal": "1.4.0"
+  }
+}
