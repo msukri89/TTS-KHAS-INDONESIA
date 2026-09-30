@@ -74,7 +74,19 @@ function expandNumbers(s) {
     return month ? numberToIndonesian(Number(d)) + " " + month + " " + numberToIndonesian(Number(y)) : _;
   });
 
-  // Plain integers, while avoiding decimals already containing punctuation.
+  // Decimal numbers: 2,5 -> "dua koma lima"; 2.50 -> "dua koma lima nol".
+  s = s.replace(/\b(\d+)[,](\d+)\b/g, (_, a, b) => {
+    return numberToIndonesian(Number(a)) + " koma " +
+      b.split("").map(d => UNITS[Number(d)]).join(" ");
+  });
+
+  // Indonesian thousands: 25.000 -> "dua puluh lima ribu".
+  s = s.replace(/\b\d{1,3}(?:\.\d{3})+\b/g, value => {
+    const n = Number(value.replace(/\./g, ""));
+    return Number.isFinite(n) ? numberToIndonesian(n) : value;
+  });
+
+  // Remaining plain integers.
   s = s.replace(/\b\d{1,9}\b/g, (_, n) => numberToIndonesian(Number(n)));
   return s;
 }
