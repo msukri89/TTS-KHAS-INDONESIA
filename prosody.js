@@ -108,17 +108,32 @@ function normalizePunctuation(s) {
   return s;
 }
 
-function humanizePhrasing(s) {
-  // Give common Indonesian discourse markers a small natural boundary.
+function humanizePhrasing(s, style = "natural") {
+  // Greetings should sound like a spoken opening, not a sentence fragment.
   s = s
-    .replace(/\b(baik|nah|jadi|sekarang|kemudian|selanjutnya),?\s+/gi, "$1, ")
     .replace(/\b(assalamualaikum(?: warahmatullahi wabarakatuh)?)\s*/gi, "$1. ")
-    .replace(/\b(terima kasih)\s+(atas|untuk)\b/gi, "$1, $2")
-    .replace(/\b(selamat pagi|selamat siang|selamat sore|selamat malam)\s+/gi, "$1, ");
+    .replace(/\b(selamat pagi|selamat siang|selamat sore|selamat malam)\s+/gi, "$1, ")
+    .replace(/\b(terima kasih)\s+(atas|untuk)\b/gi, "$1, $2");
 
-  // Long clauses become easier to speak when a coordinating conjunction
-  // has a boundary. Only add it when the surrounding phrase is substantial.
-  s = s.replace(/\s+(tetapi|namun|sedangkan|sehingga|karena itu|oleh karena itu)\s+/gi, ", $1 ");
+  // Discourse markers get a light boundary, but only when they introduce
+  // a clause. This avoids the "comma after every few words" effect.
+  s = s
+    .replace(/\b(baik|nah|jadi|sekarang|kemudian|selanjutnya),?\s+(?=[A-Za-zÀ-ÿ])/gi, "$1, ");
+
+  // Only split long clauses. Short sentences sound more natural without
+  // an artificial conjunction pause.
+  s = s.replace(
+    /([^.!?]{42,})\s+(tetapi|namun|sedangkan|sehingga|karena itu|oleh karena itu)\s+/gi,
+    "$1, $2 "
+  );
+
+  // Natural Indonesian closings: a slightly stronger boundary before a
+  // concluding phrase can improve cadence without changing the words.
+  if (style === "formal") {
+    s = s.replace(/\s+(dengan demikian|pada akhirnya)\s+/gi, ". $1, ");
+  } else if (style === "announcer") {
+    s = s.replace(/\s+(perhatian|harap diperhatikan)\s+/gi, ". $1, ");
+  }
 
   return s.replace(/\s+/g, " ").trim();
 }
@@ -129,16 +144,12 @@ function addProsody(text, style = "natural") {
   s = expandNumbers(s);
   s = s.replace(FILLERS, "");
   s = normalizePunctuation(s);
-  s = humanizePhrasing(s);
+  s = humanizePhrasing(s, style);
 
-  // Keep global rate/pitch changes small; punctuation carries most phrasing.
-  if (style === "announcer") {
-    s = s.replace(/\s*,\s*/g, ", ");
-  } else if (style === "formal") {
-    s = s.replace(/\s*,\s*/g, ", ");
-  } else if (style === "friendly") {
-    s = s.replace(/\s*,\s*/g, ", ");
-  }
+  // A single explicit sentence-ending pause is preferable to many commas.
+  // Keep punctuation as the main prosody signal for the Neural voice.
+  s = s.replace(/\s*\.\s*/g, ". ");
+  s = s.replace(/\s*,\s*/g, ", ");
 
   return s.replace(/\s+/g, " ").trim();
 }
