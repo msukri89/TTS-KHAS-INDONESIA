@@ -1,59 +1,72 @@
-export default async function handler(req,res){
-  if(req.method!=="POST")return res.status(405).json({error:"Method not allowed"});
-  try{
-    const {text,voice="id_ID-news_tts-medium",rate=1}=req.body||{};
-    const input=String(text||"").trim();
-    if(!input)return res.status(400).json({error:"Text is required"});
-    if(input.length>500)return res.status(400).json({error:"Maksimal 500 karakter per permintaan pada akses gratis tanpa login."});
+import { EdgeTTS } from "edge-tts-universal";
 
-    const payload={
-      model:"piper",
-      text:input,
-      voice:String(voice||"id_ID-news_tts-medium"),
-      format:"mp3",
-      language:"id",
-      speed:Math.min(2,Math.max(.5,Number(rate)||1))
-    };
+const VOICES = {
+  "id-ID-ArdiNeural": "id-ID-ArdiNeural",
+  "id-ID-GadisNeural": "id-ID-GadisNeural"
+};
 
-    const r=await fetch("https://api.tts.ai/v1/tts/",{
-      method:"POST",
-      headers:{"Content-Type":"application/json","Accept":"application/json, audio/mpeg"},
-      body:JSON.stringify(payload)
+function toPercent(rate) {
+  const n = Math.min(1.4, Math.max(0.6, Number(rate) || 1));
+  return Math.round((n - 1) * 100);
+}
+
+function toPitch(pitch) {
+  const n = Math.min(1.4, Math.max(0.6, Number(pitch) || 1));
+  return Math.round((n - 1) * 30);
+}
+
+function styleAdjust(style = "natural") {
+  if (style === "formal") return { rate: -4, pitch: -1 };
+  if (style === "friendly") return { rate: 2, pitch: 1 };
+  if (style === "announcer") return { rate: -3, pitch: 0 };
+  return { rate: 0, pitch: 0 };
+}
+
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  try {
+    const body = req.body || {};
+    const input = String(body.text || "").trim();
+    const voice = VOICES[String(body.voice)] || "id-ID-GadisNeural";
+    const rawRate = Number(body.rate) || 1;
+    const rawPitch = Number(body.pitch) || 1;
+    const style = String(body.style || "natural");
+    const adjust = styleAdjust(style);
+
+    if (!input) return res.status(400).json({ error: "Text is required" });
+    if (input.length > 3000) {
+      return res.status(400).json({ error: "Maksimal 3.000 karakter per permintaan." });
+    }
+
+    const rate = Math.max(-50, Math.min(50, toPercent(rawRate) + adjust.rate));
+    const pitch = Math.max(-15, Math.min(15, toPitch(rawPitch) + adjust.pitch));
+
+    const tts = new EdgeTTS(input, voice, {
+      rate: (rate >= 0 ? "+" : "") + rate + "%",
+      volume: "+0%",
+      pitch: (pitch >= 0 ? "+" : "") + pitch + "Hz"
     });
 
-    const contentType=r.headers.get("content-type")||"";
-    if(!r.ok){
-      const raw=await r.text();
-      let message=raw;
-      try{const j=JSON.parse(raw);message=j.error?.message||j.error||j.detail||raw}catch{}
-      return res.status(r.status).json({error:"TTS.ai: "+String(message)});
+    const result = await tts.synthesize();
+    const bytes = Buffer.from(await result.audio.arrayBuffer());
+
+    if (!bytes.length) {
+      throw new Error("Microsoft Edge TTS tidak mengembalikan audio.");
     }
 
-    if(contentType.includes("audio/")){
-      const bytes=Buffer.from(await r.arrayBuffer());
-      return res.status(200).json({audioContent:bytes.toString("base64"),voice:payload.voice,provider:"TTS.ai Piper"});
-    }
-
-    const job=await r.json();
-    if(!job.uuid)return res.status(502).json({error:"TTS.ai tidak mengembalikan UUID pekerjaan."});
-
-    const deadline=Date.now()+25000;
-    while(Date.now()<deadline){
-      await new Promise(resolve=>setTimeout(resolve,1200));
-      const pr=await fetch("https://api.tts.ai/v1/speech/results/?uuid="+encodeURIComponent(job.uuid));
-      const result=await pr.json();
-      if(result.status==="completed"&&result.result_url){
-        const audio=await fetch(result.result_url);
-        if(!audio.ok)throw new Error("Audio hasil TTS.ai tidak dapat diambil.");
-        const bytes=Buffer.from(await audio.arrayBuffer());
-        return res.status(200).json({audioContent:bytes.toString("base64"),voice:payload.voice,provider:"TTS.ai Piper"});
-      }
-      if(result.status==="failed"){
-        return res.status(502).json({error:"TTS.ai gagal melakukan sintesis: "+String(result.error||result.message||result.status||"synthesis-failed"),status:result.status||null});
-      }
-    }
-    return res.status(504).json({error:"TTS.ai belum selesai setelah 25 detik. Silakan coba lagi."});
-  }catch(e){
-    return res.status(500).json({error:e.message||"Unexpected error"});
+    return res.status(200).json({
+      audioContent: bytes.toString("base64"),
+      voice,
+      provider: "Microsoft Edge Neural TTS",
+      format: "mp3"
+    });
+  } catch (e) {
+    console.error("TTS synthesis error:", e);
+    return res.status(502).json({
+      error: "Sintesis suara gagal: " + (e?.message || "kesalahan provider")
+    });
   }
 }
