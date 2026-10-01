@@ -80,6 +80,13 @@ function expandNumbers(s) {
       b.split("").map(d => UNITS[Number(d)]).join(" ");
   });
 
+  // Decimal numbers with a dot: 2.5 / 2.50 -> "dua koma lima nol".
+  // Three digits after a dot are intentionally left for the thousands rule below.
+  s = s.replace(/\b(\d+)\.(\d{1,2})\b/g, (_, a, b) => {
+    return numberToIndonesian(Number(a)) + " koma " +
+      b.split("").map(d => UNITS[Number(d)]).join(" ");
+  });
+
   // Indonesian thousands: 25.000 -> "dua puluh lima ribu".
   s = s.replace(/\b\d{1,3}(?:\.\d{3})+\b/g, value => {
     const n = Number(value.replace(/\./g, ""));
@@ -138,6 +145,36 @@ function humanizePhrasing(s, style = "natural") {
   return s.replace(/\s+/g, " ").trim();
 }
 
+function planSpeech(s, style = "natural") {
+  // Keep the Neural engine in one synthesis request. We only improve the
+  // text's clause boundaries; we never split the audio into multiple calls.
+  const sentences = s.split(/(?<=[.!?])\s+/);
+
+  return sentences.map(sentence => {
+    if (sentence.length < 95) return sentence;
+
+    let out = sentence.replace(
+      /^(.{40,85}?)\s+(tetapi|namun|sedangkan|sehingga|karena|agar|supaya|sementara|kemudian|selanjutnya)\s+/i,
+      "$1, $2 "
+    );
+
+    // For very long sentences, a single comma before a natural transition
+    // is enough. Never add several artificial pauses to the same sentence.
+    if (out === sentence && sentence.length >= 125) {
+      out = sentence.replace(
+        /^(.{45,95}?)\s+(dan)\s+/i,
+        "$1, $2 "
+      );
+    }
+
+    if (style === "announcer" && /^.{70,}\b(perhatian|harap diperhatikan)\b/i.test(out)) {
+      out = out.replace(/s+(perhatian|harap diperhatikan)s+/i, ". $1, ");
+    }
+
+    return out;
+  }).join(" ");
+}
+
 function addProsody(text, style = "natural") {
   let s = normalizeBase(text);
   s = expandAbbreviations(s);
@@ -145,6 +182,7 @@ function addProsody(text, style = "natural") {
   s = s.replace(FILLERS, "");
   s = normalizePunctuation(s);
   s = humanizePhrasing(s, style);
+  s = planSpeech(s, style);
 
   // A single explicit sentence-ending pause is preferable to many commas.
   // Keep punctuation as the main prosody signal for the Neural voice.
