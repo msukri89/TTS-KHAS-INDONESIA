@@ -3,27 +3,43 @@ const VOICES = {
   "Fenrir": "Fenrir"
 };
 
+function voiceCharacter(voice) {
+  if (voice === "Fenrir") {
+    return [
+      "Karakter suara pria Indonesia yang dewasa, tenang, hangat, dan percaya diri.",
+      "Jangan terlalu berat atau terlalu dibuat-buat.",
+      "Biarkan perubahan intonasi muncul secara alami seperti pria yang benar-benar sedang berbicara."
+    ].join(" ");
+  }
+
+  return [
+    "Karakter suara wanita Indonesia yang dewasa, hangat, natural, dan ekspresif.",
+    "Jangan terlalu manis atau dibuat-buat.",
+    "Biarkan intonasi terasa spontan seperti wanita yang benar-benar sedang berbicara."
+  ].join(" ");
+}
+
 function stylePrompt(style = "natural") {
   const styles = {
     natural: [
-      "Berbicaralah seperti manusia Indonesia yang sedang berbicara langsung kepada orang lain, bukan seperti membaca naskah.",
+      "Berbicaralah seperti manusia Indonesia yang sedang berbicara langsung kepada satu orang, bukan seperti membaca naskah.",
       "Gunakan gaya percakapan yang spontan, hangat, santai, dan meyakinkan.",
-      "Biarkan intonasi naik dan turun secara alami mengikuti maksud kalimat.",
-      "Jangan memberi tekanan yang sama pada semua kata."
+      "Jangan mengucapkan setiap kata dengan bobot yang sama.",
+      "Biarkan sebagian kata mengalir ringan dan hanya kata atau gagasan penting yang mendapat penekanan."
     ].join(" "),
 
     formal: [
-      "Berbicaralah seperti seorang profesional Indonesia yang sedang menjelaskan sesuatu kepada orang lain secara langsung.",
+      "Berbicaralah seperti seorang profesional Indonesia yang sedang menjelaskan sesuatu secara langsung kepada orang lain.",
       "Suara tenang, matang, jelas, dan berwibawa, tetapi tetap terasa manusiawi.",
       "Gunakan penekanan hanya pada kata atau gagasan yang memang penting.",
       "Jangan terdengar seperti membaca naskah berita."
     ].join(" "),
 
     friendly: [
-      "Berbicaralah seperti orang Indonesia yang ramah sedang berbicara langsung dengan teman atau orang yang dikenalnya.",
+      "Berbicaralah seperti orang Indonesia yang ramah sedang berbicara langsung dengan orang yang dikenalnya.",
       "Gunakan nada hangat, akrab, ringan, dan ekspresif.",
-      "Sesekali biarkan intonasi naik secara alami ketika menyampaikan sesuatu yang menyenangkan atau menarik.",
-      "Hindari gaya announcer dan hindari suara yang terlalu dibuat-buat."
+      "Boleh ada sedikit energi dan variasi nada ketika menyampaikan sesuatu yang menarik.",
+      "Hindari gaya announcer dan suara yang terlalu dibuat-buat."
     ].join(" "),
 
     announcer: [
@@ -37,7 +53,7 @@ function stylePrompt(style = "natural") {
   return styles[style] || styles.natural;
 }
 
-function buildPrompt(text, style, rate = 1, pitch = 1) {
+function buildPrompt(text, style, rate = 1, pitch = 1, voice = "Aoede") {
   const speedHint =
     rate < 0.9 ? "sedikit lebih lambat dari percakapan biasa" :
     rate > 1.1 ? "sedikit lebih cepat dari percakapan biasa" :
@@ -51,20 +67,27 @@ function buildPrompt(text, style, rate = 1, pitch = 1) {
   return [
     "PERAN:",
     "Anda adalah pengisi suara manusia berbahasa Indonesia.",
+    voiceCharacter(voice),
     "",
     "CARA BERBICARA:",
     stylePrompt(style),
     `Gunakan ${speedHint} dan ${pitchHint}.`,
-    "Buat setiap kalimat terasa seperti bagian dari percakapan yang benar-benar sedang terjadi.",
-    "Gunakan jeda mikro yang alami di antara kelompok kata dan jeda yang sedikit lebih panjang ketika sebuah gagasan selesai.",
-    "Sesuaikan panjang jeda dengan tanda baca dan makna, bukan dengan pola yang sama berulang-ulang.",
-    "Untuk kalimat tanya, gunakan kontur intonasi yang benar-benar terdengar seperti pertanyaan.",
-    "Untuk kalimat pernyataan, biarkan intonasi turun secara alami ketika gagasan selesai.",
-    "Untuk bagian penting, gunakan penekanan melalui intonasi dan ritme, bukan dengan membunyikan kata terlalu keras.",
-    "Jangan membuat setiap kalimat memiliki pola intonasi yang sama.",
+    "Anggap Anda sedang berbicara kepada seseorang yang benar-benar berada di depan Anda.",
+    "Jangan terdengar seperti sedang membaca teks dari layar.",
+    "Buat ritme sedikit tidak seragam secara alami; manusia tidak mengucapkan setiap kalimat dengan pola yang identik.",
+    "Gunakan jeda mikro hanya ketika membantu pemahaman, bukan setelah setiap kelompok kata.",
+    "Beri jeda yang lebih terasa ketika satu gagasan selesai atau ketika tanda baca memang membutuhkannya.",
+    "Jangan berhenti terlalu lama di tengah kalimat tanpa alasan.",
+    "Naikkan atau turunkan intonasi sesuai makna dan struktur kalimat.",
+    "Pada kalimat tanya, buat benar-benar terdengar seperti sedang bertanya.",
+    "Pada kalimat pernyataan, biarkan akhir gagasan turun dan selesai secara alami.",
+    "Gunakan penekanan melalui perubahan intonasi, ritme, dan durasi secara halus; jangan berteriak.",
+    "Jangan memberi penekanan pada terlalu banyak kata.",
+    "Jika kalimat pendek, jangan membuatnya terdengar dramatis secara berlebihan.",
+    "Jika kalimat panjang, pertahankan aliran bicara dan pecah secara alami berdasarkan makna.",
     "Jangan terburu-buru menyelesaikan akhir kalimat.",
     "Hindari suara yang terlalu datar, terlalu sempurna, terlalu seragam, atau seperti robot.",
-    "Jangan menambahkan tawa, desahan, suara mulut, atau kata-kata yang tidak ada di teks kecuali benar-benar diperlukan secara alami.",
+    "Jangan menambahkan tawa, desahan, suara mulut, atau kata-kata yang tidak ada di teks.",
     "",
     "ATURAN TEKS:",
     "Bacakan teks persis sesuai isinya.",
@@ -75,6 +98,7 @@ function buildPrompt(text, style, rate = 1, pitch = 1) {
     text
   ].join("\n");
 }
+
 function createWav(pcm) {
   const sampleRate = 24000;
   const channels = 1;
@@ -119,7 +143,7 @@ async function generateGemini(text, voice, style, rate, pitch) {
     body: JSON.stringify({
       contents: [{
         parts: [{
-          text: buildPrompt(text, style, rate, pitch)
+          text: buildPrompt(text, style, rate, pitch, voice)
         }]
       }],
       generationConfig: {
