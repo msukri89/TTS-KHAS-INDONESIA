@@ -168,7 +168,7 @@ function planSpeech(s, style = "natural") {
     }
 
     if (style === "announcer" && /^.{70,}\b(perhatian|harap diperhatikan)\b/i.test(out)) {
-      out = out.replace(/s+(perhatian|harap diperhatikan)s+/i, ". $1, ");
+      out = out.replace(/\s+(perhatian|harap diperhatikan)\s+/i, ". $1, ");
     }
 
     return out;
