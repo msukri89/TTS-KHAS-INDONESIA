@@ -6,59 +6,67 @@ export const VOICE_ROOT = MODEL_ROOT + "/voice_styles";
 
 ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.23.0/dist/";
 
-const LANGS = new Set(["en","ko","ja","ar","bg","cs","da","de","el","es","et","fi","fr","hi","hr","hu","id","it","lt","lv","nl","pl","pt","ro","ru","sk","sl","sv","tr","uk","vi","na"]);
+const AVAILABLE_LANGS = ["en","ko","ja","ar","bg","cs","da","de","el","es","et","fi","fr","hi","hr","hu","id","it","lt","lv","nl","pl","pt","ro","ru","sk","sl","sv","tr","uk","vi","na"];
 
-function cleanText(text, lang) {
+function preprocessText(text, lang) {
   text = String(text || "").normalize("NFKD");
-  text = text.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]+/gu, "");
+  text = text.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E6}-\u{1F1FF}]+/gu, "");
   const replacements = {
     "–":"-", "‑":"-", "—":"-", "_":" ",
-    "“":'"', "”":'"', "‘":"'", "’":"'", "´":"'",
+    "“":"\"", "”":"\"", "‘":"'", "’":"'", "´":"'", "`":"'",
     "[":" ", "]":" ", "|":" ", "/":" ", "#":" ", "→":" ", "←":" "
   };
-  for (const [a,b] of Object.entries(replacements)) text = text.replaceAll(a,b);
+  for (const [k,v] of Object.entries(replacements)) text = text.replaceAll(k,v);
   text = text.replace(/[♥☆♡©\\]/g, "");
   text = text.replace(/\s+/g, " ").trim();
   if (!/[.!?;:,'\"')\]}…。」』】〉》›»]$/.test(text)) text += ".";
-  if (!LANGS.has(lang)) throw new Error("Bahasa tidak didukung: " + lang);
+  if (!AVAILABLE_LANGS.includes(lang)) throw new Error("Bahasa tidak didukung: " + lang);
   return "<" + lang + ">" + text + "</" + lang + ">";
 }
 
 class UnicodeProcessor {
   constructor(indexer) { this.indexer = indexer; }
   call(textList, langList) {
-    const processed = textList.map((t,i) => cleanText(t, langList[i]));
-    const lengths = processed.map(t => Array.from(t).length);
+    const processed = textList.map((t,i) => preprocessText(t, langList[i]));
+    const lengths = processed.map(t => t.length);
     const maxLen = Math.max(...lengths);
     const ids = processed.map(t => {
       const row = new Array(maxLen).fill(0);
-      let j = 0;
-      for (const ch of t) row[j++] = this.indexer[ch.codePointAt(0)] ?? -1;
+      for (let j=0; j<t.length; j++) {
+        const cp = t.codePointAt(j);
+        row[j] = cp < this.indexer.length ? this.indexer[cp] : -1;
+      }
       return row;
     });
-    return { textIds: ids, textMask: lengths.map(n => [Array.from({length:maxLen}, (_,i)=>i<n?1:0)]) };
+    const mask = lengths.map(len => [Array.from({length:maxLen}, (_,i) => i < len ? 1 : 0)]);
+    return {textIds:ids, textMask:mask};
   }
 }
 
 class Style {
-  constructor(ttl, dp) { this.ttl = ttl; this.dp = dp; }
+  constructor(ttl, dp) { this.ttl=ttl; this.dp=dp; }
 }
 
 function chunkText(text, maxLen=300) {
-  const sentences = text.trim().split(/(?<=[.!?])\s+/);
+  if (typeof text !== "string") throw new Error("chunkText expects a string");
+  const paragraphs = text.trim().split(/\n\s*\n+/).filter(p => p.trim());
   const chunks = [];
-  let current = "";
-  for (const s of sentences) {
-    if (!s.trim()) continue;
-    if (current && current.length + s.length + 1 > maxLen) {
-      chunks.push(current.trim());
-      current = s;
-    } else {
-      current += (current ? " " : "") + s;
+  for (let paragraph of paragraphs) {
+    paragraph = paragraph.trim();
+    if (!paragraph) continue;
+    const sentences = paragraph.split(/(?<!Mr\.|Mrs\.|Ms\.|Dr\.|Prof\.|Sr\.|Jr\.|Ph\.D\.|etc\.|e\.g\.|i\.e\.|vs\.|Inc\.|Ltd\.|Co\.|Corp\.|St\.|Ave\.|Blvd\.)(?<!\b[A-Z]\.)(?<=[.!?])\s+/);
+    let current = "";
+    for (const sentence of sentences) {
+      if (current.length + sentence.length + 1 <= maxLen) {
+        current += (current ? " " : "") + sentence;
+      } else {
+        if (current) chunks.push(current.trim());
+        current = sentence;
+      }
     }
+    if (current) chunks.push(current.trim());
   }
-  if (current) chunks.push(current.trim());
-  return chunks.length ? chunks : [text.trim()];
+  return chunks;
 }
 
 export class SupertonicTTS {
@@ -70,67 +78,104 @@ export class SupertonicTTS {
 
   async infer(text, lang, style, steps, speed, progress) {
     const {textIds,textMask}=this.processor.call([text],[lang]);
-    const b=1, n=textIds[0].length;
-    const ids=new ort.Tensor("int64",new BigInt64Array(textIds[0].map(x=>BigInt(x))),[b,n]);
-    const mask=new ort.Tensor("float32",new Float32Array(textMask[0][0]),[b,1,n]);
+    const idsFlat=new BigInt64Array(textIds.flat().map(x=>BigInt(x)));
+    const ids=new ort.Tensor("int64",idsFlat,[1,textIds[0].length]);
+    const maskFlat=new Float32Array(textMask.flat(2));
+    const mask=new ort.Tensor("float32",maskFlat,[1,1,textMask[0][0].length]);
 
     const dpo=await this.dp.run({text_ids:ids,style_dp:style.dp,text_mask:mask});
-    const duration=Array.from(dpo.duration.data).map(d=>d/speed);
+    const duration=Array.from(dpo.duration.data);
+    for(let i=0;i<duration.length;i++) duration[i]/=speed;
 
     const eco=await this.enc.run({text_ids:ids,style_ttl:style.ttl,text_mask:mask});
     const textEmb=eco.text_emb;
 
-    const maxDur=Math.max(...duration);
-    const wavMax=Math.floor(maxDur*this.sampleRate);
-    const chunkSize=this.cfgs.ae.base_chunk_size*this.cfgs.ttl.chunk_compress_factor;
-    const latentLen=Math.floor((wavMax+chunkSize-1)/chunkSize);
-    const latentDim=this.cfgs.ttl.latent_dim*this.cfgs.ttl.chunk_compress_factor;
-    const wavLen=Math.floor(duration[0]*this.sampleRate);
-    const validLen=Math.floor((wavLen+chunkSize-1)/chunkSize);
+    const sampled=this.sampleNoisyLatent(duration);
+    const latentMask=new ort.Tensor(
+      "float32",
+      new Float32Array(sampled.latentMask.flat(2)),
+      [1,1,sampled.latentMask[0][0].length]
+    );
 
-    const xtData=new Float32Array(latentDim*latentLen);
-    for(let i=0;i<xtData.length;i++){
-      const u1=Math.max(0.0001,Math.random()),u2=Math.random();
-      xtData[i]=Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2);
-    }
-    for(let d=0;d<latentDim;d++) for(let t=validLen;t<latentLen;t++) xtData[d*latentLen+t]=0;
+    const totalStepTensor=new ort.Tensor("float32",new Float32Array([steps]),[1]);
 
-    const latentMaskData=new Float32Array(latentLen);
-    latentMaskData.fill(1,0,Math.min(validLen,latentLen));
-    const latentMask=new ort.Tensor("float32",latentMaskData,[1,1,latentLen]);
-    const totalStep=new ort.Tensor("float32",new Float32Array([steps]),[1]);
-
+    let xt=sampled.xt;
     for(let step=0;step<steps;step++){
       progress?.(step+1,steps);
-      const xt=new ort.Tensor("float32",xtData,[1,latentDim,latentLen]);
-      const current=new ort.Tensor("float32",new Float32Array([step]),[1]);
+      const xtFlat=new Float32Array(xt.flat(2));
+      const xtTensor=new ort.Tensor("float32",xtFlat,[1,xt[0].length,xt[0][0].length]);
+      const currentStepTensor=new ort.Tensor("float32",new Float32Array([step]),[1]);
       const out=await this.vec.run({
-        noisy_latent:xt,text_emb:textEmb,style_ttl:style.ttl,
-        latent_mask:latentMask,text_mask:mask,current_step:current,total_step:totalStep
+        noisy_latent:xtTensor,text_emb:textEmb,style_ttl:style.ttl,
+        latent_mask:latentMask,text_mask:mask,
+        current_step:currentStepTensor,total_step:totalStepTensor
       });
-      xtData.set(out.denoised_latent.data);
+      const data=out.denoised_latent.data;
+      const latentDim=xt[0].length;
+      const latentLen=xt[0][0].length;
+      const next=[];
+      let idx=0;
+      for(let d=0;d<latentDim;d++){
+        const row=[];
+        for(let t=0;t<latentLen;t++) row.push(data[idx++]);
+        next.push(row);
+      }
+      xt=[next];
     }
 
-    const finalXt=new ort.Tensor("float32",xtData,[1,latentDim,latentLen]);
+    const finalXt=new ort.Tensor("float32",new Float32Array(xt.flat(2)),[1,xt[0].length,xt[0][0].length]);
     const vo=await this.voc.run({latent:finalXt});
-    return {wav:Array.from(vo.wav_tts.data),duration:duration[0]};
+    return {wav:Array.from(vo.wav_tts.data),duration};
+  }
+
+  sampleNoisyLatent(duration) {
+    const maxDur=Math.max(...duration);
+    const sampleRate=this.sampleRate;
+    const baseChunkSize=this.cfgs.ae.base_chunk_size;
+    const chunkCompress=this.cfgs.ttl.chunk_compress_factor;
+    const latentDim=this.cfgs.ttl.latent_dim;
+    const wavLenMax=Math.floor(maxDur*sampleRate);
+    const wavLengths=duration.map(d=>Math.floor(d*sampleRate));
+    const chunkSize=baseChunkSize*chunkCompress;
+    const latentLen=Math.floor((wavLenMax+chunkSize-1)/chunkSize);
+    const latentDimVal=latentDim*chunkCompress;
+
+    const xt=[[]];
+    for(let d=0;d<latentDimVal;d++){
+      const row=[];
+      for(let t=0;t<latentLen;t++){
+        const u1=Math.max(0.0001,Math.random()),u2=Math.random();
+        row.push(Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2));
+      }
+      xt[0].push(row);
+    }
+
+    const latentLengths=wavLengths.map(len=>Math.floor((len+chunkSize-1)/chunkSize));
+    const latentMask=[[]];
+    const maskRow=[];
+    for(let t=0;t<latentLen;t++) maskRow.push(t<latentLengths[0]?1:0);
+    latentMask[0].push(maskRow);
+
+    for(let d=0;d<latentDimVal;d++){
+      for(let t=0;t<latentLen;t++) xt[0][d][t]*=maskRow[t];
+    }
+    return {xt,latentMask};
   }
 
   async synthesize(text,lang,style,steps=8,speed=1.05,progress){
     const chunks=chunkText(text,300);
-    let output=[], total=0;
+    let wavCat=[], durCat=0;
     for(let i=0;i<chunks.length;i++){
       const r=await this.infer(chunks[i],lang,style,steps,speed,progress);
-      const needed=Math.min(r.wav.length,Math.floor(r.duration*this.sampleRate));
-      if(i) {
-        const silence=new Array(Math.floor(this.sampleRate*0.28)).fill(0);
-        output.push(...silence);
-        total+=0.28;
+      if(i){
+        const silence=new Array(Math.floor(this.sampleRate*0.3)).fill(0);
+        wavCat.push(...silence);
+        durCat+=0.3;
       }
-      output.push(...r.wav.slice(0,needed));
-      total+=r.duration;
+      wavCat.push(...r.wav);
+      durCat+=r.duration[0];
     }
-    return {wav:output,duration:total};
+    return {wav:wavCat,duration:durCat};
   }
 }
 
@@ -138,18 +183,14 @@ export async function loadStyle(id) {
   const r=await fetch(VOICE_ROOT+"/"+id+".json");
   if(!r.ok) throw new Error("Gagal memuat voice " + id);
   const j=await r.json();
-  const ttl=j.style_ttl, dp=j.style_dp;
   return new Style(
-    new ort.Tensor("float32",new Float32Array(ttl.data.flat(Infinity)),ttl.dims),
-    new ort.Tensor("float32",new Float32Array(dp.data.flat(Infinity)),dp.dims)
+    new ort.Tensor("float32",new Float32Array(j.style_ttl.data.flat(Infinity)),j.style_ttl.dims),
+    new ort.Tensor("float32",new Float32Array(j.style_dp.data.flat(Infinity)),j.style_dp.dims)
   );
 }
 
 export async function loadEngine(provider,onProgress) {
-  if(provider==="wasm"){
-    ort.env.wasm.numThreads=1;
-    ort.env.wasm.simd=true;
-  }
+  if(provider==="wasm"){ ort.env.wasm.numThreads=1; ort.env.wasm.simd=true; }
   const options={executionProviders:[provider],graphOptimizationLevel:"all"};
   const cfg=await fetch(ONNX_ROOT+"/tts.json").then(r=>r.json());
   const indexer=await fetch(ONNX_ROOT+"/unicode_indexer.json").then(r=>r.json());
@@ -161,18 +202,15 @@ export async function loadEngine(provider,onProgress) {
   ];
   const sessions=[];
   for(let i=0;i<files.length;i++){
-    onProgress?.(files[i][1],i,files.length);
+    onProgress?.(files[i][1],i+1,files.length);
     sessions.push(await ort.InferenceSession.create(ONNX_ROOT+"/"+files[i][0],options));
   }
-  return {
-    tts:new SupertonicTTS(cfg,new UnicodeProcessor(indexer),sessions[0],sessions[1],sessions[2],sessions[3]),
-    backend:provider
-  };
+  return {tts:new SupertonicTTS(cfg,new UnicodeProcessor(indexer),sessions[0],sessions[1],sessions[2],sessions[3]),backend:provider};
 }
 
 export function wavBlob(samples,sampleRate){
   const data=new Int16Array(samples.length);
-  for(let i=0;i<samples.length;i++) data[i]=Math.round(Math.max(-1,Math.min(1,samples[i]))*32767);
+  for(let i=0;i<samples.length;i++) data[i]=Math.floor(Math.max(-1,Math.min(1,samples[i]))*32767);
   const buffer=new ArrayBuffer(44+data.byteLength),v=new DataView(buffer);
   const ws=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i));};
   ws(0,"RIFF");v.setUint32(4,36+data.byteLength,true);ws(8,"WAVE");
