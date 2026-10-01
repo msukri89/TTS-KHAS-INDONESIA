@@ -3,98 +3,61 @@ const VOICES = {
   "Fenrir": "Fenrir"
 };
 
-function voiceCharacter(voice) {
-  if (voice === "Fenrir") {
-    return [
-      "Karakter suara pria Indonesia yang dewasa, tenang, hangat, dan percaya diri.",
-      "Jangan terlalu berat atau terlalu dibuat-buat.",
-      "Biarkan perubahan intonasi muncul secara alami seperti pria yang benar-benar sedang berbicara."
-    ].join(" ");
-  }
-
-  return [
-    "Karakter suara wanita Indonesia yang dewasa, hangat, natural, dan ekspresif.",
-    "Jangan terlalu manis atau dibuat-buat.",
-    "Biarkan intonasi terasa spontan seperti wanita yang benar-benar sedang berbicara."
-  ].join(" ");
-}
-
 function stylePrompt(style = "natural") {
   const styles = {
     natural: [
-      "Berbicaralah seperti manusia Indonesia yang sedang berbicara langsung kepada satu orang, bukan seperti membaca naskah.",
-      "Gunakan gaya percakapan yang spontan, hangat, santai, dan meyakinkan.",
-      "Jangan mengucapkan setiap kata dengan bobot yang sama.",
-      "Biarkan sebagian kata mengalir ringan dan hanya kata atau gagasan penting yang mendapat penekanan."
+      "Berbicaralah dalam bahasa Indonesia secara natural dan percakapan.",
+      "Jangan terdengar seperti membaca naskah.",
+      "Gunakan intonasi, ritme, dan jeda yang mengikuti makna kalimat."
     ].join(" "),
 
     formal: [
-      "Berbicaralah seperti seorang profesional Indonesia yang sedang menjelaskan sesuatu secara langsung kepada orang lain.",
-      "Suara tenang, matang, jelas, dan berwibawa, tetapi tetap terasa manusiawi.",
-      "Gunakan penekanan hanya pada kata atau gagasan yang memang penting.",
-      "Jangan terdengar seperti membaca naskah berita."
+      "Berbicaralah dalam bahasa Indonesia dengan gaya profesional, tenang, jelas, dan berwibawa.",
+      "Tetap terdengar seperti manusia yang sedang berbicara, bukan membaca berita."
     ].join(" "),
 
     friendly: [
-      "Berbicaralah seperti orang Indonesia yang ramah sedang berbicara langsung dengan orang yang dikenalnya.",
-      "Gunakan nada hangat, akrab, ringan, dan ekspresif.",
-      "Boleh ada sedikit energi dan variasi nada ketika menyampaikan sesuatu yang menarik.",
-      "Hindari gaya announcer dan suara yang terlalu dibuat-buat."
+      "Berbicaralah dalam bahasa Indonesia dengan gaya ramah, hangat, akrab, dan ringan.",
+      "Tetap natural dan tidak dibuat-buat."
     ].join(" "),
 
     announcer: [
-      "Berbicaralah seperti pembawa acara Indonesia yang profesional dan berpengalaman.",
-      "Jelas, mantap, energik, dan mudah diikuti.",
-      "Berikan penekanan yang wajar pada informasi penting dan ubah intonasi ketika berpindah gagasan.",
-      "Tetap terdengar seperti manusia yang sedang berbicara, bukan mesin pembaca teks."
+      "Berbicaralah dalam bahasa Indonesia seperti pembawa acara profesional.",
+      "Jelas, mantap, energik, tetapi tetap natural dan manusiawi."
     ].join(" ")
   };
 
   return styles[style] || styles.natural;
 }
 
-function buildPrompt(text, style, rate = 1, pitch = 1, voice = "Aoede") {
+function buildPrompt(text, style, rate = 1, pitch = 1) {
   const speedHint =
     rate < 0.9 ? "sedikit lebih lambat dari percakapan biasa" :
     rate > 1.1 ? "sedikit lebih cepat dari percakapan biasa" :
-    "pada tempo percakapan yang alami";
+    "pada tempo percakapan alami";
 
   const pitchHint =
-    pitch < 0.9 ? "dengan nada suara sedikit lebih rendah" :
-    pitch > 1.1 ? "dengan nada suara sedikit lebih tinggi" :
-    "dengan nada suara percakapan alami";
+    pitch < 0.9 ? "sedikit lebih rendah" :
+    pitch > 1.1 ? "sedikit lebih tinggi" :
+    "alami";
 
   return [
-    "PERAN:",
-    "Anda adalah pengisi suara manusia berbahasa Indonesia.",
-    voiceCharacter(voice),
+    "TUGAS:",
+    "Bacakan teks berikut dalam bahasa Indonesia.",
     "",
-    "CARA BERBICARA:",
+    "GAYA:",
     stylePrompt(style),
-    `Gunakan ${speedHint} dan ${pitchHint}.`,
-    "Anggap Anda sedang berbicara kepada seseorang yang benar-benar berada di depan Anda.",
-    "Jangan terdengar seperti sedang membaca teks dari layar.",
-    "Buat ritme sedikit tidak seragam secara alami; manusia tidak mengucapkan setiap kalimat dengan pola yang identik.",
-    "Gunakan jeda mikro hanya ketika membantu pemahaman, bukan setelah setiap kelompok kata.",
-    "Beri jeda yang lebih terasa ketika satu gagasan selesai atau ketika tanda baca memang membutuhkannya.",
-    "Jangan berhenti terlalu lama di tengah kalimat tanpa alasan.",
-    "Naikkan atau turunkan intonasi sesuai makna dan struktur kalimat.",
-    "Pada kalimat tanya, buat benar-benar terdengar seperti sedang bertanya.",
-    "Pada kalimat pernyataan, biarkan akhir gagasan turun dan selesai secara alami.",
-    "Gunakan penekanan melalui perubahan intonasi, ritme, dan durasi secara halus; jangan berteriak.",
-    "Jangan memberi penekanan pada terlalu banyak kata.",
-    "Jika kalimat pendek, jangan membuatnya terdengar dramatis secara berlebihan.",
-    "Jika kalimat panjang, pertahankan aliran bicara dan pecah secara alami berdasarkan makna.",
-    "Jangan terburu-buru menyelesaikan akhir kalimat.",
-    "Hindari suara yang terlalu datar, terlalu sempurna, terlalu seragam, atau seperti robot.",
-    "Jangan menambahkan tawa, desahan, suara mulut, atau kata-kata yang tidak ada di teks.",
+    `Gunakan tempo ${speedHint} dan nada suara ${pitchHint}.`,
+    "Bayangkan Anda sedang berbicara langsung kepada satu orang.",
+    "Biarkan intonasi naik dan turun sesuai makna.",
+    "Gunakan jeda yang wajar pada tanda baca dan perpindahan gagasan.",
+    "Jangan membuat setiap kalimat memiliki pola intonasi yang sama.",
+    "Jangan memberi tekanan pada semua kata; hanya bagian penting yang perlu sedikit penekanan.",
+    "Akhiri kalimat pernyataan secara natural dan buat kalimat tanya benar-benar terdengar seperti pertanyaan.",
+    "Hindari suara datar, monoton, terlalu sempurna, atau seperti robot.",
+    "Jangan menambahkan kata, komentar, tawa, atau suara lain yang tidak ada dalam teks.",
     "",
-    "ATURAN TEKS:",
-    "Bacakan teks persis sesuai isinya.",
-    "Jangan membacakan instruksi di atas.",
-    "Jangan menambahkan pembuka, penutup, komentar, atau kalimat lain.",
-    "",
-    "TEKS YANG HARUS DIUCAPKAN:",
+    "BACA TEKS INI PERSIS:",
     text
   ].join("\n");
 }
@@ -131,8 +94,10 @@ async function generateGemini(text, voice, style, rate, pitch) {
   }
 
   const model = "gemini-2.5-flash-preview-tts";
-  const url = "https://generativelanguage.googleapis.com/v1beta/models/" +
-    model + ":generateContent";
+  const url =
+    "https://generativelanguage.googleapis.com/v1beta/models/" +
+    model +
+    ":generateContent";
 
   const response = await fetch(url, {
     method: "POST",
@@ -143,7 +108,7 @@ async function generateGemini(text, voice, style, rate, pitch) {
     body: JSON.stringify({
       contents: [{
         parts: [{
-          text: buildPrompt(text, style, rate, pitch, voice)
+          text: buildPrompt(text, style, rate, pitch)
         }]
       }],
       generationConfig: {
@@ -188,6 +153,9 @@ export default async function handler(req, res) {
   try {
     const body = req.body || {};
     const input = String(body.text || "").trim();
+
+    // Voice is controlled ONLY by the UI value -> server allowlist -> Gemini voiceName.
+    // The prompt deliberately contains no gender/voice-character instruction.
     const voice = VOICES[String(body.voice)] || "Aoede";
     const style = String(body.style || "natural");
     const rate = Math.min(1.4, Math.max(0.6, Number(body.rate) || 1));
