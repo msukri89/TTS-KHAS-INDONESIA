@@ -1,25 +1,111 @@
-import { EdgeTTS } from "edge-tts-universal";
-
 const VOICES = {
-  "id-ID-ArdiNeural": "id-ID-ArdiNeural",
-  "id-ID-GadisNeural": "id-ID-GadisNeural"
+  "Aoede": "Aoede",
+  "Fenrir": "Fenrir"
 };
 
-function toPercent(rate) {
-  const n = Math.min(1.4, Math.max(0.6, Number(rate) || 1));
-  return Math.round((n - 1) * 100);
+function stylePrompt(style = "natural") {
+  const styles = {
+    natural: "Berbicaralah seperti orang Indonesia sungguhan yang sedang berbicara secara natural. Santai, hangat, tidak kaku, dengan intonasi yang hidup dan jeda napas yang wajar.",
+    formal: "Berbicaralah sebagai pembicara profesional berbahasa Indonesia. Tenang, jelas, berwibawa, tetapi tetap manusiawi dan tidak terdengar seperti membaca mesin.",
+    friendly: "Berbicaralah dengan gaya ramah, hangat, akrab, dan menyenangkan seperti berbicara langsung kepada seseorang. Gunakan intonasi yang hidup tetapi tetap natural.",
+    announcer: "Berbicaralah seperti penyiar atau pembawa acara Indonesia yang profesional. Jelas dan tegas, dengan penekanan yang wajar pada informasi penting, tetapi jangan berlebihan."
+  };
+  return styles[style] || styles.natural;
 }
 
-function toPitch(pitch) {
-  const n = Math.min(1.4, Math.max(0.6, Number(pitch) || 1));
-  return Math.round((n - 1) * 30);
+function buildPrompt(text, style) {
+  return [
+    "Anda adalah pengisi suara manusia berbahasa Indonesia.",
+    stylePrompt(style),
+    "Bacakan teks berikut persis sesuai isinya.",
+    "Jangan membacakan instruksi ini dan jangan menambahkan kalimat apa pun.",
+    "Gunakan ritme, jeda, penekanan, dan perubahan intonasi yang alami sesuai makna kalimat.",
+    "Hindari tempo yang terlalu seragam, jeda yang terlalu mekanis, dan gaya membaca seperti robot.",
+    "",
+    "TEKS:",
+    text
+  ].join("\n");
 }
 
-function styleAdjust(style = "natural") {
-  if (style === "formal") return { rate: -4, pitch: -1 };
-  if (style === "friendly") return { rate: 2, pitch: 1 };
-  if (style === "announcer") return { rate: -3, pitch: 0 };
-  return { rate: 0, pitch: 0 };
+function createWav(pcm) {
+  const sampleRate = 24000;
+  const channels = 1;
+  const bitsPerSample = 16;
+  const blockAlign = channels * bitsPerSample / 8;
+  const buffer = Buffer.alloc(44 + pcm.length);
+
+  buffer.write("RIFF", 0);
+  buffer.writeUInt32LE(36 + pcm.length, 4);
+  buffer.write("WAVE", 8);
+  buffer.write("fmt ", 12);
+  buffer.writeUInt32LE(16, 16);
+  buffer.writeUInt16LE(1, 20);
+  buffer.writeUInt16LE(channels, 22);
+  buffer.writeUInt32LE(sampleRate, 24);
+  buffer.writeUInt32LE(sampleRate * blockAlign, 28);
+  buffer.writeUInt16LE(blockAlign, 32);
+  buffer.writeUInt16LE(bitsPerSample, 34);
+  buffer.write("data", 36);
+  buffer.writeUInt32LE(pcm.length, 40);
+  pcm.copy(buffer, 44);
+
+  return buffer;
+}
+
+async function generateGemini(text, voice, style) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY belum dipasang di environment server.");
+  }
+
+  const model = "gemini-2.5-flash-preview-tts";
+  const url = "https://generativelanguage.googleapis.com/v1beta/models/" +
+    model + ":generateContent";
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey
+    },
+    body: JSON.stringify({
+      contents: [{
+        parts: [{
+          text: buildPrompt(text, style)
+        }]
+      }],
+      generationConfig: {
+        responseModalities: ["AUDIO"],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: {
+              voiceName: voice
+            }
+          }
+        }
+      }
+    })
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    const message =
+      data?.error?.message ||
+      `Gemini TTS HTTP ${response.status}`;
+    throw new Error(message);
+  }
+
+  const inlineData =
+    data?.candidates?.[0]?.content?.parts?.find(
+      part => part?.inlineData?.data
+    )?.inlineData;
+
+  if (!inlineData?.data) {
+    throw new Error("Gemini tidak mengembalikan data audio.");
+  }
+
+  return createWav(Buffer.from(inlineData.data, "base64"));
 }
 
 export default async function handler(req, res) {
@@ -30,43 +116,34 @@ export default async function handler(req, res) {
   try {
     const body = req.body || {};
     const input = String(body.text || "").trim();
-    const voice = VOICES[String(body.voice)] || "id-ID-GadisNeural";
-    const rawRate = Number(body.rate) || 1;
-    const rawPitch = Number(body.pitch) || 1;
+    const voice = VOICES[String(body.voice)] || "Aoede";
     const style = String(body.style || "natural");
-    const adjust = styleAdjust(style);
 
-    if (!input) return res.status(400).json({ error: "Text is required" });
+    if (!input) {
+      return res.status(400).json({ error: "Text is required" });
+    }
+
     if (input.length > 3000) {
-      return res.status(400).json({ error: "Maksimal 3.000 karakter per permintaan." });
+      return res.status(400).json({
+        error: "Maksimal 3.000 karakter per permintaan."
+      });
     }
 
-    const rate = Math.max(-50, Math.min(50, toPercent(rawRate) + adjust.rate));
-    const pitch = Math.max(-15, Math.min(15, toPitch(rawPitch) + adjust.pitch));
-
-    const tts = new EdgeTTS(input, voice, {
-      rate: (rate >= 0 ? "+" : "") + rate + "%",
-      volume: "+0%",
-      pitch: (pitch >= 0 ? "+" : "") + pitch + "Hz"
-    });
-
-    const result = await tts.synthesize();
-    const bytes = Buffer.from(await result.audio.arrayBuffer());
-
-    if (!bytes.length) {
-      throw new Error("Microsoft Edge TTS tidak mengembalikan audio.");
-    }
+    const audio = await generateGemini(input, voice, style);
 
     return res.status(200).json({
-      audioContent: bytes.toString("base64"),
+      audioContent: audio.toString("base64"),
       voice,
-      provider: "Microsoft Edge Neural TTS",
-      format: "mp3"
+      provider: "Google Gemini 2.5 Flash TTS",
+      format: "wav",
+      sampleRate: 24000
     });
   } catch (e) {
-    console.error("TTS synthesis error:", e);
+    console.error("Gemini TTS synthesis error:", e);
+
     return res.status(502).json({
-      error: "Sintesis suara gagal: " + (e?.message || "kesalahan provider")
+      error: "Sintesis suara gagal: " +
+        (e?.message || "kesalahan provider")
     });
   }
 }
