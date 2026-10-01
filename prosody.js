@@ -146,29 +146,53 @@ function humanizePhrasing(s, style = "natural") {
 }
 
 function planSpeech(s, style = "natural") {
-  // Keep the Neural engine in one synthesis request. We only improve the
-  // text's clause boundaries; we never split the audio into multiple calls.
+  // Human Prosody v3:
+  // Keep ONE Edge TTS request. We guide the neural model with conservative
+  // spoken-language boundaries instead of stitching multiple audio files.
   const sentences = s.split(/(?<=[.!?])\s+/);
 
   return sentences.map(sentence => {
-    if (sentence.length < 95) return sentence;
+    let out = sentence.trim();
+    if (!out) return out;
 
-    let out = sentence.replace(
-      /^(.{40,85}?)\s+(tetapi|namun|sedangkan|sehingga|karena|agar|supaya|sementara|kemudian|selanjutnya)\s+/i,
-      "$1, $2 "
+    // Spoken openings: a short breath after a time/context phrase.
+    out = out.replace(
+      /^(pagi ini|siang ini|sore ini|malam ini|hari ini|saat ini|pada hari ini|dalam kesempatan ini|di kesempatan ini)\s+/i,
+      "$1, "
     );
 
-    // For very long sentences, a single comma before a natural transition
-    // is enough. Never add several artificial pauses to the same sentence.
-    if (out === sentence && sentence.length >= 125) {
-      out = sentence.replace(
-        /^(.{45,95}?)\s+(dan)\s+/i,
+    // Natural introductory phrases. These are intentionally limited so the
+    // engine does not acquire the "comma every few words" sound.
+    out = out.replace(
+      /^(setelah itu|setelah salat|setelah shalat|sebelum itu|selain itu|di sisi lain|pada akhirnya|dengan demikian)\s+/i,
+      "$1, "
+    );
+
+    if (out.length >= 85) {
+      out = out.replace(
+        /^(.{42,88}?)\s+(tetapi|namun|sedangkan|sehingga|karena itu|oleh karena itu|agar|supaya|sementara|meskipun)\s+/i,
         "$1, $2 "
       );
     }
 
-    if (style === "announcer" && /^.{70,}\b(perhatian|harap diperhatikan)\b/i.test(out)) {
-      out = out.replace(/\s+(perhatian|harap diperhatikan)\s+/i, ". $1, ");
+    // A long sentence often benefits from one additional boundary before
+    // a clear transition. Never add more than one planner comma per sentence.
+    if (out.length >= 125 && !/,/.test(out)) {
+      out = out.replace(
+        /^(.{48,100}?)\s+(kemudian|selanjutnya)\s+/i,
+        "$1. $2, "
+      );
+    }
+
+    // Questions are left intact so the neural model can preserve rising
+    // question intonation from the final question mark.
+    if (out.endsWith("?")) return out;
+
+    if (style === "announcer") {
+      out = out.replace(
+        /\s+(perhatian|harap diperhatikan)\s+/i,
+        ". $1, "
+      );
     }
 
     return out;
