@@ -5,39 +5,76 @@ const VOICES = {
 
 function stylePrompt(style = "natural") {
   const styles = {
-    natural: "Berbicaralah seperti orang Indonesia sungguhan yang sedang berbicara secara natural. Santai, hangat, tidak kaku, dengan intonasi yang hidup dan jeda napas yang wajar.",
-    formal: "Berbicaralah sebagai pembicara profesional berbahasa Indonesia. Tenang, jelas, berwibawa, tetapi tetap manusiawi dan tidak terdengar seperti membaca mesin.",
-    friendly: "Berbicaralah dengan gaya ramah, hangat, akrab, dan menyenangkan seperti berbicara langsung kepada seseorang. Gunakan intonasi yang hidup tetapi tetap natural.",
-    announcer: "Berbicaralah seperti penyiar atau pembawa acara Indonesia yang profesional. Jelas dan tegas, dengan penekanan yang wajar pada informasi penting, tetapi jangan berlebihan."
+    natural: [
+      "Berbicaralah seperti manusia Indonesia yang sedang berbicara langsung kepada orang lain, bukan seperti membaca naskah.",
+      "Gunakan gaya percakapan yang spontan, hangat, santai, dan meyakinkan.",
+      "Biarkan intonasi naik dan turun secara alami mengikuti maksud kalimat.",
+      "Jangan memberi tekanan yang sama pada semua kata."
+    ].join(" "),
+
+    formal: [
+      "Berbicaralah seperti seorang profesional Indonesia yang sedang menjelaskan sesuatu kepada orang lain secara langsung.",
+      "Suara tenang, matang, jelas, dan berwibawa, tetapi tetap terasa manusiawi.",
+      "Gunakan penekanan hanya pada kata atau gagasan yang memang penting.",
+      "Jangan terdengar seperti membaca naskah berita."
+    ].join(" "),
+
+    friendly: [
+      "Berbicaralah seperti orang Indonesia yang ramah sedang berbicara langsung dengan teman atau orang yang dikenalnya.",
+      "Gunakan nada hangat, akrab, ringan, dan ekspresif.",
+      "Sesekali biarkan intonasi naik secara alami ketika menyampaikan sesuatu yang menyenangkan atau menarik.",
+      "Hindari gaya announcer dan hindari suara yang terlalu dibuat-buat."
+    ].join(" "),
+
+    announcer: [
+      "Berbicaralah seperti pembawa acara Indonesia yang profesional dan berpengalaman.",
+      "Jelas, mantap, energik, dan mudah diikuti.",
+      "Berikan penekanan yang wajar pada informasi penting dan ubah intonasi ketika berpindah gagasan.",
+      "Tetap terdengar seperti manusia yang sedang berbicara, bukan mesin pembaca teks."
+    ].join(" ")
   };
+
   return styles[style] || styles.natural;
 }
 
 function buildPrompt(text, style, rate = 1, pitch = 1) {
   const speedHint =
-    rate < 0.9 ? "sedikit lebih lambat" :
-    rate > 1.1 ? "sedikit lebih cepat" :
-    "dengan tempo percakapan normal";
+    rate < 0.9 ? "sedikit lebih lambat dari percakapan biasa" :
+    rate > 1.1 ? "sedikit lebih cepat dari percakapan biasa" :
+    "pada tempo percakapan yang alami";
 
   const pitchHint =
-    pitch < 0.9 ? "sedikit lebih rendah" :
-    pitch > 1.1 ? "sedikit lebih tinggi" :
-    "pada nada percakapan alami";
+    pitch < 0.9 ? "dengan nada suara sedikit lebih rendah" :
+    pitch > 1.1 ? "dengan nada suara sedikit lebih tinggi" :
+    "dengan nada suara percakapan alami";
 
   return [
+    "PERAN:",
     "Anda adalah pengisi suara manusia berbahasa Indonesia.",
+    "",
+    "CARA BERBICARA:",
     stylePrompt(style),
     `Gunakan ${speedHint} dan ${pitchHint}.`,
-    "Bacakan teks berikut persis sesuai isinya.",
-    "Jangan membacakan instruksi ini dan jangan menambahkan kalimat apa pun.",
-    "Gunakan ritme, jeda, penekanan, dan perubahan intonasi yang alami sesuai makna kalimat.",
-    "Hindari tempo yang terlalu seragam, jeda yang terlalu mekanis, dan gaya membaca seperti robot.",
+    "Buat setiap kalimat terasa seperti bagian dari percakapan yang benar-benar sedang terjadi.",
+    "Gunakan jeda mikro yang alami di antara kelompok kata dan jeda yang sedikit lebih panjang ketika sebuah gagasan selesai.",
+    "Sesuaikan panjang jeda dengan tanda baca dan makna, bukan dengan pola yang sama berulang-ulang.",
+    "Untuk kalimat tanya, gunakan kontur intonasi yang benar-benar terdengar seperti pertanyaan.",
+    "Untuk kalimat pernyataan, biarkan intonasi turun secara alami ketika gagasan selesai.",
+    "Untuk bagian penting, gunakan penekanan melalui intonasi dan ritme, bukan dengan membunyikan kata terlalu keras.",
+    "Jangan membuat setiap kalimat memiliki pola intonasi yang sama.",
+    "Jangan terburu-buru menyelesaikan akhir kalimat.",
+    "Hindari suara yang terlalu datar, terlalu sempurna, terlalu seragam, atau seperti robot.",
+    "Jangan menambahkan tawa, desahan, suara mulut, atau kata-kata yang tidak ada di teks kecuali benar-benar diperlukan secara alami.",
     "",
-    "TEKS:",
+    "ATURAN TEKS:",
+    "Bacakan teks persis sesuai isinya.",
+    "Jangan membacakan instruksi di atas.",
+    "Jangan menambahkan pembuka, penutup, komentar, atau kalimat lain.",
+    "",
+    "TEKS YANG HARUS DIUCAPKAN:",
     text
   ].join("\n");
 }
-
 function createWav(pcm) {
   const sampleRate = 24000;
   const channels = 1;
