@@ -13,10 +13,21 @@ function stylePrompt(style = "natural") {
   return styles[style] || styles.natural;
 }
 
-function buildPrompt(text, style) {
+function buildPrompt(text, style, rate = 1, pitch = 1) {
+  const speedHint =
+    rate < 0.9 ? "sedikit lebih lambat" :
+    rate > 1.1 ? "sedikit lebih cepat" :
+    "dengan tempo percakapan normal";
+
+  const pitchHint =
+    pitch < 0.9 ? "sedikit lebih rendah" :
+    pitch > 1.1 ? "sedikit lebih tinggi" :
+    "pada nada percakapan alami";
+
   return [
     "Anda adalah pengisi suara manusia berbahasa Indonesia.",
     stylePrompt(style),
+    `Gunakan ${speedHint} dan ${pitchHint}.`,
     "Bacakan teks berikut persis sesuai isinya.",
     "Jangan membacakan instruksi ini dan jangan menambahkan kalimat apa pun.",
     "Gunakan ritme, jeda, penekanan, dan perubahan intonasi yang alami sesuai makna kalimat.",
@@ -52,7 +63,7 @@ function createWav(pcm) {
   return buffer;
 }
 
-async function generateGemini(text, voice, style) {
+async function generateGemini(text, voice, style, rate, pitch) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY belum dipasang di environment server.");
@@ -71,7 +82,7 @@ async function generateGemini(text, voice, style) {
     body: JSON.stringify({
       contents: [{
         parts: [{
-          text: buildPrompt(text, style)
+          text: buildPrompt(text, style, rate, pitch)
         }]
       }],
       generationConfig: {
@@ -118,6 +129,8 @@ export default async function handler(req, res) {
     const input = String(body.text || "").trim();
     const voice = VOICES[String(body.voice)] || "Aoede";
     const style = String(body.style || "natural");
+    const rate = Math.min(1.4, Math.max(0.6, Number(body.rate) || 1));
+    const pitch = Math.min(1.4, Math.max(0.6, Number(body.pitch) || 1));
 
     if (!input) {
       return res.status(400).json({ error: "Text is required" });
@@ -129,7 +142,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const audio = await generateGemini(input, voice, style);
+    const audio = await generateGemini(input, voice, style, rate, pitch);
 
     return res.status(200).json({
       audioContent: audio.toString("base64"),
