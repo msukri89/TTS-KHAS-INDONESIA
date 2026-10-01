@@ -80,7 +80,7 @@ function planSegments(text, style) {
     }
 
     // Questions naturally carry a small upward movement.
-    if (/\\?$/.test(s)) {
+    if (/\?$/.test(s)) {
       role = "question";
       pitch += 2;
     }
