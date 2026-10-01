@@ -22,47 +22,97 @@ function styleAdjust(style = "natural") {
   return { rate: 0, pitch: 0 };
 }
 
-// Speech planner: split at real sentence boundaries and give each spoken
-// unit a very small expressive adjustment. The adjustments are deliberately
-// subtle so the result still sounds like one continuous speaker.
+// Speech planner v3: turn Indonesian prose into human-sized speaking units.
+// The goal is not to add commas everywhere; it is to create a few meaningful
+// breaths and subtle changes of delivery between semantic units.
+function splitLongSentence(sentence) {
+  const clean = sentence.trim();
+  if (clean.length <= 95) return [clean];
+
+  // Prefer natural Indonesian clause boundaries.
+  const re = /\\s+(?=(tetapi|namun|sedangkan|karena|sehingga|supaya|agar|meskipun|walaupun|sementara|lalu|kemudian|dan kemudian|oleh karena itu|karena itu)\\b)/i;
+  const words = clean.split(/\\s+/);
+  const chunks = [];
+  let current = "";
+
+  for (const word of words) {
+    const candidate = current ? current + " " + word : word;
+    if (current.length >= 48 && re.test(" " + word)) {
+      chunks.push(current.trim());
+      current = word;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) chunks.push(current.trim());
+
+  // Only keep the split when it produces sensible chunks.
+  if (chunks.length > 1 && chunks.every(x => x.length >= 28)) {
+    return chunks;
+  }
+  return [clean];
+}
+
 function planSegments(text, style) {
-  const clean = String(text || "").replace(/\s+/g, " ").trim();
+  const clean = String(text || "").replace(/\\s+/g, " ").trim();
   if (!clean) return [];
 
-  const parts = clean
-    .split(/(?<=[.!?])\s+/)
+  const sentences = clean
+    .split(/(?<=[.!?])\\s+/)
     .map(s => s.trim())
     .filter(Boolean);
 
-  const segments = [];
-  for (let i = 0; i < parts.length; i++) {
-    const s = parts[i];
+  const units = [];
+  for (const sentence of sentences) {
+    units.push(...splitLongSentence(sentence));
+  }
+
+  return units.map((s, i) => {
     let rate = 0;
     let pitch = 0;
+    let role = "body";
 
-    // Openings and greetings: slightly slower and warmer.
-    if (/^(assalamualaikum|selamat (pagi|siang|sore|malam))/i.test(s)) {
+    // Opening: welcoming, slightly slower and warmer.
+    if (/^(assalamualaikum|selamat (pagi|siang|sore|malam))\\b/i.test(s)) {
+      role = "opening";
       rate -= 3;
       pitch += 1;
     }
 
-    // Questions: a tiny pitch lift. This is intentionally small because
-    // consumer Edge TTS does not expose per-word pitch contours.
-    if (/\?$/.test(s)) pitch += 2;
+    // Questions naturally carry a small upward movement.
+    if (/\\?$/.test(s)) {
+      role = "question";
+      pitch += 2;
+    }
 
-    // Short closing sentences: slightly calmer.
-    if (/(terima kasih|semoga|selamat|sampai jumpa)[.!?]?$/i.test(s)) {
+    // Important discourse transitions should breathe, not rush.
+    if (/^(baik|nah|jadi|sekarang|selanjutnya|kemudian|perhatian|harap diperhatikan)\\b/i.test(s)) {
+      role = "transition";
       rate -= 2;
     }
 
-    // Announcer style keeps units deliberate; friendly is a little quicker.
-    if (style === "announcer") rate -= 1;
-    if (style === "friendly") rate += 1;
+    // Closing language is calmer and slightly slower.
+    if (/(terima kasih|semoga|sampai jumpa|selamat jalan)[.!?]?$/i.test(s)) {
+      role = "closing";
+      rate -= 3;
+      pitch -= 1;
+    }
 
-    segments.push({ text: s, rate, pitch });
-  }
+    // Long information units are eased slightly to improve intelligibility.
+    if (s.length > 125) rate -= 2;
 
-  return segments;
+    if (style === "formal") rate -= 1;
+    if (style === "friendly") {
+      rate += role === "opening" ? 0 : 1;
+      pitch += role === "closing" ? 0 : 1;
+    }
+    if (style === "announcer") {
+      rate -= 1;
+      if (role === "transition") pitch += 1;
+    }
+
+    return { text: s, rate, pitch, role, index: i };
+  });
 }
 
 function clamp(n, min, max) {
