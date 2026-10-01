@@ -30,8 +30,8 @@ function splitLongSentence(sentence) {
   if (clean.length <= 95) return [clean];
 
   // Prefer natural Indonesian clause boundaries.
-  const re = /\\s+(?=(tetapi|namun|sedangkan|karena|sehingga|supaya|agar|meskipun|walaupun|sementara|lalu|kemudian|dan kemudian|oleh karena itu|karena itu)\\b)/i;
-  const words = clean.split(/\\s+/);
+  const re = /\s+(?=(tetapi|namun|sedangkan|karena|sehingga|supaya|agar|meskipun|walaupun|sementara|lalu|kemudian|dan kemudian|oleh karena itu|karena itu)\b)/i;
+  const words = clean.split(/\s+/);
   const chunks = [];
   let current = "";
 
@@ -54,11 +54,11 @@ function splitLongSentence(sentence) {
 }
 
 function planSegments(text, style) {
-  const clean = String(text || "").replace(/\\s+/g, " ").trim();
+  const clean = String(text || "").replace(/\s+/g, " ").trim();
   if (!clean) return [];
 
   const sentences = clean
-    .split(/(?<=[.!?])\\s+/)
+    .split(/(?<=[.!?])\s+/)
     .map(s => s.trim())
     .filter(Boolean);
 
@@ -73,7 +73,7 @@ function planSegments(text, style) {
     let role = "body";
 
     // Opening: welcoming, slightly slower and warmer.
-    if (/^(assalamualaikum|selamat (pagi|siang|sore|malam))\\b/i.test(s)) {
+    if (/^(assalamualaikum|selamat (pagi|siang|sore|malam))\b/i.test(s)) {
       role = "opening";
       rate -= 3;
       pitch += 1;
@@ -86,7 +86,7 @@ function planSegments(text, style) {
     }
 
     // Important discourse transitions should breathe, not rush.
-    if (/^(baik|nah|jadi|sekarang|selanjutnya|kemudian|perhatian|harap diperhatikan)\\b/i.test(s)) {
+    if (/^(baik|nah|jadi|sekarang|selanjutnya|kemudian|perhatian|harap diperhatikan)\b/i.test(s)) {
       role = "transition";
       rate -= 2;
     }
