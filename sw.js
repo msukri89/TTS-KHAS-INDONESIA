@@ -1,4 +1,4 @@
-const CACHE = "tts-id-v5";
+const CACHE = "tts-id-v6-supertonic";
 const ASSETS = [
   "./",
   "./index.html",

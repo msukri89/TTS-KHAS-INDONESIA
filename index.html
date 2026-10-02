@@ -1,9 +1,87 @@
 <!doctype html>
 <html lang="id">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0f172a"><link rel="manifest" href="manifest.webmanifest"><link rel="stylesheet" href="styles.css"><title>TTS Khas Indonesia</title></head>
-<body><main class="app"><header><div class="mark">ID</div><div><small>REALISTIC INDONESIAN TTS</small><h1>TTS Khas Indonesia</h1><p>Ubah teks menjadi suara dengan pengucapan Bahasa Indonesia yang lebih natural.</p></div></header>
-<section class="card"><div class="head"><h2>Teks <span id="count">0</span></h2><button id="clear">Bersihkan</button></div><textarea id="text" maxlength="3000" placeholder="Contoh: Assalamu'alaikum. Selamat datang di TTS Khas Indonesia..."></textarea>
-<div class="grid"><label>Suara<select id="voice"><option value="Aoede">Aoede — Wanita</option><option value="Fenrir">Fenrir — Pria</option></select></label><label>Kecepatan <b id="ratev">1.00×</b><input id="rate" type="range" min=".6" max="1.4" step=".05" value="1"></label><label>Nada <b id="pitchv">1.00</b><input id="pitch" type="range" min=".6" max="1.4" step=".05" value="1"></label></div>
-<div class="chips"><button class="active" data-style="natural">Natural</button><button data-style="formal">Formal</button><button data-style="friendly">Ramah</button><button data-style="announcer">Penyiar</button></div>
-<button id="speak" class="primary">▶ Buat Suara</button><button id="stop" class="secondary">■ Hentikan</button><div id="status">Siap digunakan.</div><div class="result"><audio id="audio" controls hidden></audio><a id="download" class="download" hidden>⬇ Unduh WAV</a></div></section>
-<section class="card"><h2>Mesin Bahasa Indonesia</h2><ul><li>Normalisasi angka dan beberapa singkatan</li><li>Prosody: jeda dan ritme berbasis konteks</li><li>Prompt pengarahan gaya bicara manusiawi</li><li>Voice engine terpisah dari antarmuka</li></ul><p class="note">Engine utama menggunakan Google Gemini 2.5 Flash TTS. Server memproses suara dan mengirimkan audio tanpa membocorkan API key ke browser.</p></section></main><script src="prosody.js"></script><script src="app-server.js"></script></body></html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f172a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="styles.css">
+<title>TTS Khas Indonesia — Supertonic 3</title>
+</head>
+<body>
+<main class="app">
+<header>
+  <div class="mark">ID</div>
+  <div>
+    <small>REALISTIC INDONESIAN TTS</small>
+    <h1>TTS Khas Indonesia</h1>
+    <p>Suara Bahasa Indonesia dengan Supertonic 3, diproses langsung di perangkat.</p>
+  </div>
+</header>
+
+<section id="loader" class="card loader">
+  <div class="loader-title"><strong>Menyiapkan Supertonic 3</strong><span id="backend">Memuat…</span></div>
+  <div class="bar"><i id="loaderBar"></i></div>
+  <div id="loaderText">Model sekitar 400 MB akan dimuat pada penggunaan pertama.</div>
+</section>
+
+<section class="card">
+  <div class="head"><h2>Teks <span id="count">0</span></h2><button id="clear">Bersihkan</button></div>
+  <textarea id="text" maxlength="3000" placeholder="Contoh: Assalamu'alaikum. Selamat datang di TTS Khas Indonesia. Semoga hari ini menjadi hari yang penuh kebaikan."></textarea>
+
+  <div class="grid">
+    <label>Suara
+      <select id="voice">
+        <option value="F1">F1 — Wanita 1</option>
+        <option value="F2">F2 — Wanita 2</option>
+        <option value="F3">F3 — Wanita 3</option>
+        <option value="F4">F4 — Wanita 4</option>
+        <option value="F5">F5 — Wanita 5</option>
+        <option value="M1">M1 — Pria 1</option>
+        <option value="M2">M2 — Pria 2</option>
+        <option value="M3">M3 — Pria 3</option>
+        <option value="M4">M4 — Pria 4</option>
+        <option value="M5">M5 — Pria 5</option>
+      </select>
+    </label>
+
+    <label>Kecepatan <b id="ratev">1.05×</b>
+      <input id="rate" type="range" min=".75" max="1.5" step=".05" value="1.05">
+    </label>
+
+    <label>Kualitas <b id="stepsv">8</b> langkah
+      <input id="steps" type="range" min="4" max="12" step="1" value="8">
+    </label>
+  </div>
+
+  <div class="chips">
+    <button class="active">🇮🇩 Bahasa Indonesia</button>
+    <span class="chip-note">Pemrosesan lokal • tanpa API key • tanpa kuota harian</span>
+  </div>
+
+  <button id="speak" class="primary" disabled>▶ Buat Suara</button>
+  <button id="stop" class="secondary">■ Hentikan</button>
+  <div id="status">Memuat mesin TTS…</div>
+
+  <div class="result">
+    <audio id="audio" controls hidden></audio>
+    <a id="download" class="download" hidden>⬇ Unduh WAV</a>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Mesin TTS Lokal</h2>
+  <ul>
+    <li>Supertonic 3 mendukung Bahasa Indonesia.</li>
+    <li>10 preset suara: 5 wanita dan 5 pria.</li>
+    <li>WebGPU digunakan jika tersedia, dengan fallback ke WASM.</li>
+    <li>Setelah model dimuat, sintesis suara dilakukan di perangkat.</li>
+  </ul>
+  <p class="note">Catatan: penggunaan pertama membutuhkan unduhan model sekitar 400 MB. Kecepatan sintesis bergantung pada kemampuan HP/browser.</p>
+</section>
+</main>
+
+<script src="prosody.js"></script>
+<script type="module" src="app-supertonic.js"></script>
+</body>
+</html>
