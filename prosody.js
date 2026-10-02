@@ -1,5 +1,5 @@
-// Indonesian Prosody Engine v3
-// Prepares Indonesian text for Supertonic 3 with conservative spoken-language boundaries.
+// Indonesian Prosody Engine v4
+// Prepares Indonesian text for Supertonic 3 with conservative, sentence-aware spoken-language boundaries.
 // Important: output stays plain text because the Edge consumer service
 // accepts its own generated prosody envelope, not arbitrary SSML.
 
@@ -117,64 +117,63 @@ function normalizePunctuation(s) {
 
 function detectStyle(s) {
   const t = String(s || "").toLowerCase();
-  const announcer = /\\b(perhatian|harap diperhatikan|dimohon|diharapkan|kepada seluruh|segera|diumumkan|pengumuman|diimbau|silakan)\\b/.test(t);
-  const narrative = /\\b(pagi itu|siang itu|sore itu|malam itu|suasana|terasa|terdengar|kemudian|sementara itu|pada akhirnya)\\b/.test(t);
+  const announcer = /\b(perhatian|harap diperhatikan|dimohon|diharapkan|kepada seluruh|diumumkan|pengumuman|diimbau)\b/.test(t);
+  const narrative = /\b(pagi itu|siang itu|sore itu|malam itu|suasana|terasa|terdengar|sementara itu|di kejauhan|pada akhirnya)\b/.test(t);
+  const question = /\?\s*$/.test(t);
   if (announcer) return "announcer";
   if (narrative) return "narrative";
+  if (question) return "question";
   return "natural";
 }
 
 function humanizePhrasing(s, style = "natural") {
-  // Greetings should sound like a spoken opening, not a sentence fragment.
   s = s
     .replace(/\b(assalamualaikum(?: warahmatullahi wabarakatuh)?)\s*/gi, "$1. ")
     .replace(/\b(selamat pagi|selamat siang|selamat sore|selamat malam)\s+/gi, "$1, ")
     .replace(/\b(terima kasih)\s+(atas|untuk)\b/gi, "$1, $2");
 
-  // Discourse markers get a light boundary, but only when they introduce
-  // a clause. This avoids the "comma after every few words" effect.
-  s = s
-    .replace(/\b(baik|nah|jadi|sekarang|kemudian|selanjutnya),?\s+(?=[A-Za-zÀ-ÿ])/gi, "$1, ");
-
-  // Only split long clauses. Short sentences sound more natural without
-  // an artificial conjunction pause.
+  // Only preserve/introduce light boundaries at clear Indonesian discourse
+  // openings. Do not add a comma after ordinary words such as "segera".
   s = s.replace(
-    /([^.!?]{42,})\s+(tetapi|namun|sedangkan|sehingga|karena itu|oleh karena itu)\s+/gi,
+    /\b(baik|nah|jadi|sekarang|kemudian|selanjutnya)\s+(?=[A-Za-zÀ-ÿ])/gi,
+    "$1, "
+  );
+
+  // Long clauses get one boundary at a strong conjunction.
+  s = s.replace(
+    /([^.!?]{55,})\s+(tetapi|namun|sedangkan|sehingga|karena itu|oleh karena itu|meskipun)\s+/gi,
     "$1, $2 "
   );
 
-  // Natural Indonesian closings: a slightly stronger boundary before a
-  // concluding phrase can improve cadence without changing the words.
-  if (style === "formal") {
-    s = s.replace(/\s+(dengan demikian|pada akhirnya)\s+/gi, ". $1, ");
-  } else if (style === "announcer") {
-    s = s.replace(/\s+(perhatian|harap diperhatikan)\s+/gi, ". $1, ");
+  if (style === "announcer") {
+    s = s.replace(/\b(kepada seluruh[^.!?]{10,80})\s+(dimohon|diharapkan)\b/gi, "$1, $2");
   }
 
   return s.replace(/\s+/g, " ").trim();
 }
 
 function addIndonesianCadence(s, style = "natural") {
-  // One extra boundary is enough. Too many commas make local TTS sound
-  // artificially chopped, so this deliberately stays conservative.
-  if (style === "announcer") {
-    s = s.replace(/\\b(perhatian)\\s*\\./gi, "$1. ");
-    s = s.replace(/\\b(kepada seluruh[^.!?]{0,55})\\s+(dimohon|diharapkan)\\b/gi, "$1, $2");
-    s = s.replace(/\\b(segera|silakan)\\s+([a-zà-ÿ])/gi, "$1, $2");
-  }
-
+  // v4 deliberately avoids global comma insertion. Supertonic already uses
+  // punctuation as a prosody signal; excessive commas make speech chopped.
+  // We add only one boundary for a long introductory context phrase.
   if (style === "narrative") {
-    s = s.replace(/\\b(pagi itu|siang itu|sore itu|malam itu)\\s+/gi, "$1, ");
-    s = s.replace(/\\b(sementara itu|di kejauhan)\\s+/gi, "$1, ");
+    s = s.replace(
+      /\b(pagi itu|siang itu|sore itu|malam itu|sementara itu|di kejauhan)\s+(?=[A-Za-zÀ-ÿ])/gi,
+      "$1, "
+    );
   }
 
-  // Conversational discourse markers: keep them as light boundaries.
-  s = s.replace(/\\b(jadi|nah|baik|sekarang|memang)\\s+/gi, "$1, ");
-  return s.replace(/\\s+/g, " ").trim();
+  // In announcements, "Perhatian." remains a clean standalone callout.
+  // Do not insert a pause after "segera" or "silakan"; that was too choppy.
+  if (style === "announcer") {
+    s = s.replace(/\b(perhatian)\s*\.\s*/gi, "$1. ");
+  }
+
+  return s.replace(/\s+/g, " ").trim();
 }
 
 function planSpeech(s, style = "natural") {
-  // Human Prosody v3:
+  // Human Prosody v4:
   // Keep ONE Edge TTS request. We guide the neural model with conservative
   // spoken-language boundaries instead of stitching multiple audio files.
   const sentences = s.split(/(?<=[.!?])\s+/);
@@ -233,8 +232,10 @@ function addProsody(text, style = "auto") {
   s = expandNumbers(s);
   s = s.replace(FILLERS, "");
   s = normalizePunctuation(s);
-  s = humanizePhrasing(s, style);
-  s = planSpeech(s, style);
+  const detectedStyle = style === "auto" ? detectStyle(s) : style;
+  s = humanizePhrasing(s, detectedStyle);
+  s = planSpeech(s, detectedStyle);
+  s = addIndonesianCadence(s, detectedStyle);
 
   // A single explicit sentence-ending pause is preferable to many commas.
   // Keep punctuation as the main prosody signal for the Neural voice.
