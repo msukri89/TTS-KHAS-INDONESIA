@@ -168,11 +168,11 @@ export class SupertonicTTS {
     for(let i=0;i<chunks.length;i++){
       const r=await this.infer(chunks[i],lang,style,steps,speed,progress);
       if(i){
-        const silence=new Array(Math.floor(this.sampleRate*0.3)).fill(0);
-        wavCat.push(...silence);
+        const silenceLen=Math.floor(this.sampleRate*0.3);
+        for(let s=0;s<silenceLen;s++) wavCat.push(0);
         durCat+=0.3;
       }
-      wavCat.push(...r.wav);
+      for(let s=0;s<r.wav.length;s++) wavCat.push(r.wav[s]);
       durCat+=r.duration[0];
     }
     return {wav:wavCat,duration:durCat};
