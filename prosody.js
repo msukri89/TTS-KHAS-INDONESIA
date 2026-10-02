@@ -1,5 +1,5 @@
-// Indonesian Prosody Engine v2
-// Prepares Indonesian text for Microsoft Neural TTS.
+// Indonesian Prosody Engine v3
+// Prepares Indonesian text for Supertonic 3 with conservative spoken-language boundaries.
 // Important: output stays plain text because the Edge consumer service
 // accepts its own generated prosody envelope, not arbitrary SSML.
 
@@ -115,6 +115,15 @@ function normalizePunctuation(s) {
   return s;
 }
 
+function detectStyle(s) {
+  const t = String(s || "").toLowerCase();
+  const announcer = /\\b(perhatian|harap diperhatikan|dimohon|diharapkan|kepada seluruh|segera|diumumkan|pengumuman|diimbau|silakan)\\b/.test(t);
+  const narrative = /\\b(pagi itu|siang itu|sore itu|malam itu|suasana|terasa|terdengar|kemudian|sementara itu|pada akhirnya)\\b/.test(t);
+  if (announcer) return "announcer";
+  if (narrative) return "narrative";
+  return "natural";
+}
+
 function humanizePhrasing(s, style = "natural") {
   // Greetings should sound like a spoken opening, not a sentence fragment.
   s = s
@@ -143,6 +152,25 @@ function humanizePhrasing(s, style = "natural") {
   }
 
   return s.replace(/\s+/g, " ").trim();
+}
+
+function addIndonesianCadence(s, style = "natural") {
+  // One extra boundary is enough. Too many commas make local TTS sound
+  // artificially chopped, so this deliberately stays conservative.
+  if (style === "announcer") {
+    s = s.replace(/\\b(perhatian)\\s*\\./gi, "$1. ");
+    s = s.replace(/\\b(kepada seluruh[^.!?]{0,55})\\s+(dimohon|diharapkan)\\b/gi, "$1, $2");
+    s = s.replace(/\\b(segera|silakan)\\s+([a-zà-ÿ])/gi, "$1, $2");
+  }
+
+  if (style === "narrative") {
+    s = s.replace(/\\b(pagi itu|siang itu|sore itu|malam itu)\\s+/gi, "$1, ");
+    s = s.replace(/\\b(sementara itu|di kejauhan)\\s+/gi, "$1, ");
+  }
+
+  // Conversational discourse markers: keep them as light boundaries.
+  s = s.replace(/\\b(jadi|nah|baik|sekarang|memang)\\s+/gi, "$1, ");
+  return s.replace(/\\s+/g, " ").trim();
 }
 
 function planSpeech(s, style = "natural") {
@@ -199,7 +227,7 @@ function planSpeech(s, style = "natural") {
   }).join(" ");
 }
 
-function addProsody(text, style = "natural") {
+function addProsody(text, style = "auto") {
   let s = normalizeBase(text);
   s = expandAbbreviations(s);
   s = expandNumbers(s);
@@ -216,7 +244,7 @@ function addProsody(text, style = "natural") {
   return s.replace(/\s+/g, " ").trim();
 }
 
-const ID_PROSODY = { addProsody, numberToIndonesian };
+const ID_PROSODY = { addProsody, numberToIndonesian, detectStyle };
 
 if (typeof window !== "undefined") {
   window.ID_PROSODY = ID_PROSODY;
