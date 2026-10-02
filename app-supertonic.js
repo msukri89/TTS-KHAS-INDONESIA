@@ -82,7 +82,7 @@ async function generate() {
     const style = await loadStyle(voice.value);
     const started = performance.now();
     const result = await engine.synthesize(
-      window.ID_PROSODY?.addProsody(raw, "natural") || raw,
+      window.ID_PROSODY?.addProsody(raw, "auto") || raw,
       "id",
       style,
       Number(steps.value),
